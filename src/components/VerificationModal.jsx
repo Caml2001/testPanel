@@ -30,6 +30,7 @@ export default function VerificationModal({ verification, onClose, onUpdateStatu
   if (!verification) return null;
 
   const handleImageLoad = (type) => {
+    console.log(`Imagen ${type} cargada correctamente`);
     setImageStatuses(prev => ({
       ...prev,
       [type]: { loading: false, error: false }
@@ -37,6 +38,7 @@ export default function VerificationModal({ verification, onClose, onUpdateStatu
   };
 
   const handleImageError = (type) => {
+    console.log(`Error al cargar imagen ${type}`);
     setImageStatuses(prev => ({
       ...prev,
       [type]: { loading: false, error: true }
@@ -53,50 +55,111 @@ export default function VerificationModal({ verification, onClose, onUpdateStatu
   const handleImageUpload = async (type, file) => {
     try {
       setUploading(true);
+      console.log('Iniciando carga de imagen:', {
+        tipo: type,
+        tamaño: file.size,
+        tipo_archivo: file.type,
+        verification_id: verification.id
+      });
       
-      // Extract the original file path parts
-      const originalUrl = verification[`${type}_photo_url`];
-      const urlParts = originalUrl.split('/');
-      const fileName = urlParts[urlParts.length - 1];
-      const folderPath = fileName.split('_')[0]; // Gets the UUID folder
+      // Usar el UUID del registro existente para mantener consistencia
+      const folderPath = verification.id;
 
-      // Create the new file path maintaining the same structure
+      console.log('Información de verificación:', {
+        id: verification.id,
+        front_url: verification.front_photo_url,
+        back_url: verification.back_photo_url,
+        selfie_url: verification.selfie_url
+      });
+
+      // Create the new file path using verification ID
       const filePath = `${folderPath}/${Date.now()}_${type}.jpg`;
+      console.log('Nueva ruta de archivo:', filePath);
 
       // Upload the new image
-      const { error: uploadError } = await supabase.storage
+      const { data: uploadData, error: uploadError } = await supabase.storage
         .from('id-photos')
         .upload(filePath, file, {
           upsert: true,
           contentType: 'image/jpeg'
         });
 
-      if (uploadError) throw uploadError;
+      if (uploadError) {
+        console.error('Error en carga a storage:', uploadError);
+        throw uploadError;
+      }
 
       // Get the public URL
-      const { data: { publicUrl } } = supabase.storage
+      const { data: urlData } = supabase.storage
         .from('id-photos')
         .getPublicUrl(filePath);
 
+      if (!urlData || !urlData.publicUrl) {
+        throw new Error('No se pudo generar la URL pública');
+      }
+
+      console.log('URL pública generada:', {
+        datos_url: urlData,
+        url_publica: urlData.publicUrl
+      });
+
+      // Prepare update data with correct column names
+      let updateField;
+      if (type === 'selfie') {
+        updateField = 'selfie_url';
+      } else {
+        updateField = `${type}_photo_url`;
+      }
+
+      const updateData = {
+        [updateField]: urlData.publicUrl
+      };
+
+      console.log('Datos a actualizar:', {
+        campo: updateField,
+        valor: urlData.publicUrl,
+        id_verificacion: verification.id
+      });
+
       // Update the verification record
-      const { error: updateError } = await supabase
+      const { data: dbData, error: updateError } = await supabase
         .from('identity_verifications')
-        .update({ [`${type}_photo_url`]: publicUrl })
-        .eq('id', verification.id);
+        .update(updateData)
+        .eq('id', verification.id)
+        .select();
 
-      if (updateError) throw updateError;
+      if (updateError) {
+        console.error('Error en actualización de base de datos:', updateError);
+        throw updateError;
+      }
 
-      // Update local state
-      verification[`${type}_photo_url`] = publicUrl;
+      console.log('Respuesta de actualización:', {
+        datos: dbData,
+        error: updateError
+      });
+
+      // Update local state with correct field name
+      verification[updateField] = urlData.publicUrl;
       setImageStatuses(prev => ({
         ...prev,
-        [type]: { loading: true, error: false }
+        [type]: { loading: false, error: false }
       }));
 
       toast.success('Imagen actualizada exitosamente');
+      console.log('Proceso completado exitosamente para:', type);
     } catch (error) {
-      console.error('Image upload error:', error);
-      toast.error('Error al actualizar la imagen');
+      console.error('Error detallado en carga de imagen:', {
+        tipo: type,
+        mensaje: error.message,
+        detalles: error,
+        codigo: error.code,
+        stack: error.stack
+      });
+      setImageStatuses(prev => ({
+        ...prev,
+        [type]: { loading: false, error: true }
+      }));
+      toast.error(error.message || 'Error al actualizar la imagen');
     } finally {
       setUploading(false);
     }
@@ -121,7 +184,7 @@ export default function VerificationModal({ verification, onClose, onUpdateStatu
   };
 
   const renderImage = (type, title) => {
-    const url = verification[`${type}_photo_url`];
+    const url = verification[`${type === 'selfie' ? 'selfie_url' : `${type}_photo_url`}`];
     const { loading, error } = imageStatuses[type];
 
     return (
@@ -162,11 +225,18 @@ export default function VerificationModal({ verification, onClose, onUpdateStatu
             </div>
           ) : (
             <img
+              key={url}
               src={url}
               alt={title}
               className={`w-full h-full object-cover transition-opacity duration-200 ${loading ? 'opacity-0' : 'opacity-100'}`}
-              onLoad={() => handleImageLoad(type)}
-              onError={() => handleImageError(type)}
+              onLoad={() => {
+                console.log(`Imagen ${type} cargada correctamente, URL:`, url);
+                handleImageLoad(type);
+              }}
+              onError={() => {
+                console.log(`Error al cargar imagen ${type}, URL:`, url);
+                handleImageError(type);
+              }}
             />
           )}
         </div>
