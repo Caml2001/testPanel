@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { X, AlertCircle, CheckCircle, XCircle, MessageSquare, Upload, Camera } from 'lucide-react';
+import { X, AlertCircle, CheckCircle, XCircle, MessageSquare, Upload, Camera, Clock, Info, User, Calendar, Hash } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import toast from 'react-hot-toast';
 
@@ -248,11 +248,18 @@ export default function VerificationModal({ verification, onClose, onUpdateStatu
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
       <div className="bg-white rounded-lg max-w-4xl w-full max-h-[90vh] overflow-hidden">
         <div className="p-4 border-b border-gray-200 flex items-center justify-between">
-          <div>
+          <div className="space-y-1">
             <h2 className="text-lg font-semibold text-gray-900">Verificación de Identidad</h2>
-            <p className="text-sm text-gray-500">
-              Creada el {new Date(verification.created_at).toLocaleString()}
-            </p>
+            <div className="flex items-center gap-2 text-sm text-gray-500">
+              <Calendar className="w-4 h-4" />
+              <span>Creada el {new Date(verification.created_at).toLocaleString('es-MX', {
+                year: 'numeric',
+                month: 'long',
+                day: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit'
+              })}</span>
+            </div>
           </div>
           <button
             onClick={onClose}
@@ -263,16 +270,52 @@ export default function VerificationModal({ verification, onClose, onUpdateStatu
         </div>
         
         <div className="p-6 overflow-y-auto">
+          {/* Información detallada */}
+          <div className="mb-6 bg-gray-50 rounded-lg p-4 space-y-3">
+            <div className="grid grid-cols-2 gap-4">
+              <div className="flex items-center gap-2">
+                <Hash className="w-4 h-4 text-gray-500" />
+                <span className="text-sm text-gray-600">ID:</span>
+                <span className="text-sm font-medium">{verification.id}</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <User className="w-4 h-4 text-gray-500" />
+                <span className="text-sm text-gray-600">Usuario:</span>
+                <span className="text-sm font-medium">{verification.user_id || 'No asignado'}</span>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <Info className="w-4 h-4 text-gray-500" />
+              <span className="text-sm text-gray-600">Estado:</span>
+              <span className={`text-sm font-medium px-2 py-1 rounded-full ${
+                verification.status === 'approved' 
+                  ? 'bg-green-100 text-green-800'
+                  : verification.status === 'rejected'
+                  ? 'bg-red-100 text-red-800'
+                  : 'bg-yellow-100 text-yellow-800'
+              }`}>
+                {verification.status === 'approved' 
+                  ? 'Aprobada'
+                  : verification.status === 'rejected'
+                  ? 'Rechazada'
+                  : 'Pendiente'
+                }
+              </span>
+            </div>
+          </div>
+
+          {/* Imágenes */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
             {renderImage('front', 'Frente del ID')}
             {renderImage('back', 'Reverso del ID')}
             {renderImage('selfie', 'Selfie')}
           </div>
 
+          {/* Notas */}
           <div className="space-y-4">
             <div className="space-y-2">
-              <label htmlFor="notes" className="block text-sm font-medium text-gray-700">
-                <MessageSquare className="w-4 h-4 inline-block mr-1" />
+              <label htmlFor="notes" className="block text-sm font-medium text-gray-700 flex items-center gap-2">
+                <MessageSquare className="w-4 h-4" />
                 Notas
               </label>
               <textarea
@@ -285,12 +328,13 @@ export default function VerificationModal({ verification, onClose, onUpdateStatu
               />
             </div>
 
+            {/* Botones de acción solo si está pendiente */}
             {verification.status === 'pending' && (
-              <div className="flex gap-4">
+              <div className="flex gap-4 pt-4 border-t border-gray-200">
                 <button
                   onClick={() => handleStatusUpdate('approved')}
                   disabled={isSubmitting}
-                  className="flex-1 inline-flex items-center justify-center px-4 py-2 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white bg-green-600 hover:bg-green-700 disabled:opacity-50"
+                  className="flex-1 inline-flex items-center justify-center px-4 py-2 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white bg-green-600 hover:bg-green-700 disabled:opacity-50 transition-colors"
                 >
                   <CheckCircle className="w-4 h-4 mr-2" />
                   Aprobar verificación
@@ -298,7 +342,7 @@ export default function VerificationModal({ verification, onClose, onUpdateStatu
                 <button
                   onClick={() => handleStatusUpdate('rejected')}
                   disabled={isSubmitting}
-                  className="flex-1 inline-flex items-center justify-center px-4 py-2 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white bg-red-600 hover:bg-red-700 disabled:opacity-50"
+                  className="flex-1 inline-flex items-center justify-center px-4 py-2 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white bg-red-600 hover:bg-red-700 disabled:opacity-50 transition-colors"
                 >
                   <XCircle className="w-4 h-4 mr-2" />
                   Rechazar verificación
